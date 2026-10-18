@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/equipos_controller.dart';
 import '../models/equipo.dart';
+import 'equipo_form_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +28,42 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  Future<void> abrirFormulario([Equipo? equipo]) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => EquipoFormScreen(equipo: equipo)));
+  }
+
+  Future<void> confirmarEliminacion(Equipo equipo) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar equipo'),
+        content: Text('¿Deseas eliminar ${equipo.nombre}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    final error = await controller.eliminarEquipo(equipo.id);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error ?? 'Equipo eliminado correctamente')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = Get.find<AuthController>();
@@ -47,6 +84,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Agregar equipo',
+        onPressed: () => abrirFormulario(),
+        child: const Icon(Icons.add),
+      ),
       body: Obx(() {
         if (controller.cargando.value) {
           return const Center(child: CircularProgressIndicator());
@@ -54,41 +96,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (controller.error.value.isNotEmpty) {
           return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, size: 56),
-                  const SizedBox(height: 16),
-                  Text(controller.error.value, textAlign: TextAlign.center),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: controller.cargarEquipos,
-                    child: const Text('Reintentar'),
-                  ),
-                ],
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(controller.error.value),
+                ElevatedButton(
+                  onPressed: controller.cargarEquipos,
+                  child: const Text('Reintentar'),
+                ),
+              ],
             ),
           );
         }
 
         if (controller.equipos.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.inventory_2_outlined, size: 64),
-                const SizedBox(height: 12),
-                const Text('No hay equipos registrados'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: controller.cargarEquipos,
-                  child: const Text('Actualizar'),
-                ),
-              ],
-            ),
-          );
+          return const Center(child: Text('No hay equipos registrados'));
         }
 
         return Column(
@@ -113,7 +135,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemCount: controller.equipos.length,
                   itemBuilder: (context, index) {
                     final equipo = controller.equipos[index];
-                    return _EquipoCard(equipo: equipo);
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      child: ListTile(
+                        leading: const Icon(Icons.computer),
+                        title: Text(equipo.nombre),
+                        subtitle: Text(
+                          '${equipo.codigo}\n'
+                          '${equipo.categoria} · ${equipo.ubicacion}\n'
+                          'Estado: ${equipo.estado}',
+                        ),
+                        isThreeLine: true,
+                        onTap: () => abrirFormulario(equipo),
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.red,
+                          ),
+                          tooltip: 'Eliminar equipo',
+                          onPressed: () => confirmarEliminacion(equipo),
+                        ),
+                      ),
+                    );
                   },
                 ),
               ),
@@ -121,44 +168,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         );
       }),
-    );
-  }
-}
-
-class _EquipoCard extends StatelessWidget {
-  final Equipo equipo;
-
-  const _EquipoCard({required this.equipo});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.computer)),
-        title: Text(
-          equipo.nombre,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Código: ${equipo.codigo}'),
-            Text('Categoría: ${equipo.categoria}'),
-            Text('Ubicación: ${equipo.ubicacion}'),
-          ],
-        ),
-        trailing: Text(
-          equipo.estado,
-          style: TextStyle(
-            color: equipo.estado == 'Disponible'
-                ? Colors.green.shade700
-                : Colors.orange.shade800,
-            fontSize: 12,
-          ),
-        ),
-        isThreeLine: true,
-      ),
     );
   }
 }

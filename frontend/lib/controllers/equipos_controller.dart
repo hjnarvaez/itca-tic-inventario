@@ -9,6 +9,7 @@ class EquiposController extends GetxController {
 
   final equipos = <Equipo>[].obs;
   final cargando = false.obs;
+  final guardando = false.obs;
   final error = ''.obs;
 
   @override
@@ -17,27 +18,67 @@ class EquiposController extends GetxController {
     cargarEquipos();
   }
 
+  String mensajeError(Object e) {
+    if (e is DioException) {
+      if (e.response?.statusCode == 401) {
+        return 'Sesión expirada. Inicia sesión nuevamente.';
+      }
+      if (e.response?.statusCode == 409) {
+        return 'Ya existe un equipo con ese código.';
+      }
+      if (e.response?.statusCode == 404) {
+        return 'Equipo no encontrado.';
+      }
+      if (e.response?.statusCode == 422) {
+        return 'Verifica los datos ingresados.';
+      }
+      if (e.response == null) {
+        return 'No se pudo conectar con el servidor.';
+      }
+    }
+    return 'No se pudo completar la operación.';
+  }
+
   Future<void> cargarEquipos() async {
     cargando.value = true;
     error.value = '';
-
     try {
       equipos.assignAll(await _repository.listar());
-    } on DioException catch (e) {
+    } catch (e) {
       equipos.clear();
-
-      if (e.response?.statusCode == 401) {
-        error.value = 'Tu sesión expiró. Cierra sesión e ingresa nuevamente.';
-      } else if (e.response?.statusCode == null) {
-        error.value = 'No se pudo conectar con el servidor.';
-      } else {
-        error.value = 'No fue posible cargar el inventario.';
-      }
-    } catch (_) {
-      equipos.clear();
-      error.value = 'Ocurrió un error al cargar los equipos.';
+      error.value = mensajeError(e);
     } finally {
       cargando.value = false;
+    }
+  }
+
+  Future<String?> guardar(Map<String, dynamic> datos, {int? id}) async {
+    guardando.value = true;
+    try {
+      if (id == null) {
+        await _repository.crear(datos);
+      } else {
+        await _repository.actualizar(id, datos);
+      }
+      await cargarEquipos();
+      return null;
+    } catch (e) {
+      return mensajeError(e);
+    } finally {
+      guardando.value = false;
+    }
+  }
+
+  Future<String?> eliminarEquipo(int id) async {
+    guardando.value = true;
+    try {
+      await _repository.eliminar(id);
+      await cargarEquipos();
+      return null;
+    } catch (e) {
+      return mensajeError(e);
+    } finally {
+      guardando.value = false;
     }
   }
 }

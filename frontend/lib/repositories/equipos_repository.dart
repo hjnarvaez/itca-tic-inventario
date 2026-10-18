@@ -15,22 +15,34 @@ class EquiposRepository {
 
   final AuthService _auth = AuthService();
 
-  Future<List<Equipo>> listar() async {
+  Future<Options> _autorizacion() async {
     final token = await _auth.obtenerToken();
-
     if (token == null) {
       throw StateError('Sesión no disponible');
     }
+    return Options(headers: {'Authorization': 'Bearer $token'});
+  }
 
+  Future<List<Equipo>> listar() async {
     final response = await _dio.get(
       '/equipos/',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      options: await _autorizacion(),
     );
 
-    final datos = response.data as List<dynamic>;
-
-    return datos
-        .map((item) => Equipo.fromJson(item as Map<String, dynamic>))
+    return (response.data as List)
+        .map((e) => Equipo.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<void> crear(Map<String, dynamic> datos) async {
+    await _dio.post('/equipos/', data: datos, options: await _autorizacion());
+  }
+
+  Future<void> actualizar(int id, Map<String, dynamic> datos) async {
+    await _dio.put('/equipos/$id', data: datos, options: await _autorizacion());
+  }
+
+  Future<void> eliminar(int id) async {
+    await _dio.delete('/equipos/$id', options: await _autorizacion());
   }
 }
