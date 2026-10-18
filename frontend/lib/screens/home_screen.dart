@@ -5,6 +5,7 @@ import '../controllers/auth_controller.dart';
 import '../controllers/equipos_controller.dart';
 import '../models/equipo.dart';
 import 'equipo_form_screen.dart';
+import 'ia_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -72,6 +73,14 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Inventario TIC'),
         actions: [
+          IconButton(
+            tooltip: 'Asistente IA',
+            icon: const Icon(Icons.auto_awesome),
+            onPressed: () {
+              Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const IaScreen()));
+            },
+          ),
           Obx(
             () => IconButton(
               tooltip: 'Mostrar favoritos',
