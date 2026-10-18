@@ -1,6 +1,7 @@
 import logging
 import time
 from contextlib import asynccontextmanager
+from app.routers import ia
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -55,6 +56,7 @@ app.include_router(usuarios.router)
 app.include_router(gastos.router)
 app.include_router(health.router)
 app.include_router(equipos.router)
+app.include_router(ia.router)
 app.router.routes.extend(rutas_well_known)
 app.mount("/mcp", mcp_app)
 
