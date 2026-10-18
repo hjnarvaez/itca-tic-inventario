@@ -1,3 +1,5 @@
+import '../services/favoritos_service.dart';
+
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
@@ -7,15 +9,56 @@ import '../repositories/equipos_repository.dart';
 class EquiposController extends GetxController {
   final EquiposRepository _repository = EquiposRepository();
 
+  final FavoritosService _favoritosService = FavoritosService();
+
+  final favoritos = <String>[].obs;
+  final soloFavoritos = false.obs;
+
+  bool esFavorito(String codigo) {
+    return favoritos.contains(codigo);
+  }
+
+  Future<void> cambiarFavorito(String codigo) async {
+    try {
+      if (esFavorito(codigo)) {
+        await _favoritosService.quitar(codigo);
+        favoritos.remove(codigo);
+      } else {
+        await _favoritosService.agregar(codigo);
+        favoritos.add(codigo);
+      }
+      error.value = '';
+    } catch (_) {
+      error.value = 'No se pudo guardar el favorito.';
+    }
+  }
+
+  void alternarFiltro() {
+    soloFavoritos.value = !soloFavoritos.value;
+  }
+
   final equipos = <Equipo>[].obs;
   final cargando = false.obs;
   final guardando = false.obs;
   final error = ''.obs;
 
   @override
+  @override
   void onInit() {
     super.onInit();
-    cargarEquipos();
+    iniciar();
+  }
+
+  Future<void> iniciar() async {
+    cargando.value = true;
+
+    try {
+      favoritos.assignAll(await _favoritosService.inicializar());
+    } catch (_) {
+      error.value = 'No se pudieron cargar los favoritos.';
+    }
+
+    await cargarEquipos();
   }
 
   String mensajeError(Object e) {

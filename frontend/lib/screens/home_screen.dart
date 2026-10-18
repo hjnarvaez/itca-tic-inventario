@@ -72,6 +72,17 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Inventario TIC'),
         actions: [
+          Obx(
+            () => IconButton(
+              tooltip: 'Mostrar favoritos',
+              icon: Icon(
+                controller.soloFavoritos.value
+                    ? Icons.favorite
+                    : Icons.favorite_border,
+              ),
+              onPressed: controller.alternarFiltro,
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Actualizar',
@@ -109,8 +120,20 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        if (controller.equipos.isEmpty) {
-          return const Center(child: Text('No hay equipos registrados'));
+        final visibles = controller.soloFavoritos.value
+            ? controller.equipos
+                  .where((e) => controller.esFavorito(e.codigo))
+                  .toList()
+            : controller.equipos.toList();
+
+        if (visibles.isEmpty) {
+          return Center(
+            child: Text(
+              controller.soloFavoritos.value
+                  ? 'No tienes equipos favoritos'
+                  : 'No hay equipos registrados',
+            ),
+          );
         }
 
         return Column(
@@ -120,7 +143,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Total: ${controller.equipos.length} equipos',
+                  controller.soloFavoritos.value
+                      ? 'Favoritos: ${visibles.length} equipos'
+                      : 'Total: ${visibles.length} equipos',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -132,9 +157,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: RefreshIndicator(
                 onRefresh: controller.cargarEquipos,
                 child: ListView.builder(
-                  itemCount: controller.equipos.length,
+                  itemCount: visibles.length,
                   itemBuilder: (context, index) {
-                    final equipo = controller.equipos[index];
+                    final equipo = visibles[index];
 
                     return Card(
                       margin: const EdgeInsets.symmetric(
@@ -151,13 +176,36 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         isThreeLine: true,
                         onTap: () => abrirFormulario(equipo),
-                        trailing: IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
+                        trailing: SizedBox(
+                          width: 104,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              IconButton(
+                                tooltip: 'Favorito',
+                                icon: Icon(
+                                  controller.esFavorito(equipo.codigo)
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: controller.esFavorito(equipo.codigo)
+                                      ? Colors.red
+                                      : null,
+                                ),
+                                onPressed: () {
+                                  controller.cambiarFavorito(equipo.codigo);
+                                },
+                              ),
+                              IconButton(
+                                tooltip: 'Eliminar equipo',
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () => confirmarEliminacion(equipo),
+                              ),
+                            ],
                           ),
-                          tooltip: 'Eliminar equipo',
-                          onPressed: () => confirmarEliminacion(equipo),
                         ),
                       ),
                     );
