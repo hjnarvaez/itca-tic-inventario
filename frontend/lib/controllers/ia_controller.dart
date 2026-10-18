@@ -4,7 +4,10 @@ import 'package:get/get.dart';
 import '../services/ia_service.dart';
 
 class IaController extends GetxController {
-  final IaService _service = IaService();
+  //final IaService _service = IaService();
+  IaController({IaService? service}) : _service = service ?? IaService();
+
+  final IaService _service;
 
   final cargando = false.obs;
   final respuesta = ''.obs;

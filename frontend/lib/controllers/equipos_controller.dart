@@ -7,9 +7,14 @@ import '../models/equipo.dart';
 import '../repositories/equipos_repository.dart';
 
 class EquiposController extends GetxController {
-  final EquiposRepository _repository = EquiposRepository();
+  EquiposController({
+    EquiposRepository? repository,
+    FavoritosService? favoritosService,
+  }) : _repository = repository ?? EquiposRepository(),
+       _favoritosService = favoritosService ?? FavoritosService();
 
-  final FavoritosService _favoritosService = FavoritosService();
+  final EquiposRepository _repository;
+  final FavoritosService _favoritosService;
 
   final favoritos = <String>[].obs;
   final soloFavoritos = false.obs;
