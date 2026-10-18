@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.logging_config import configurar_logging
-from app.routers import usuarios, gastos, health
+from app.routers import usuarios, gastos, health, equipos
 from app.mcp.server import mcp as mcp_server
 
 configurar_logging(settings.log_level)
@@ -50,10 +50,11 @@ async def lifespan(app: FastAPI):
         yield
 
 
-app = FastAPI(title="API de Control de Gastos", lifespan=lifespan)
+app = FastAPI(title="API ITCA TIC Inventario", lifespan=lifespan)
 app.include_router(usuarios.router)
 app.include_router(gastos.router)
 app.include_router(health.router)
+app.include_router(equipos.router)
 app.router.routes.extend(rutas_well_known)
 app.mount("/mcp", mcp_app)
 
