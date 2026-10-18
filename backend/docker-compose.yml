@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: inventario
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      POSTGRES_DB: inventario
+    volumes:
+      - inventario_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventario -d inventario"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://inventario:${POSTGRES_PASSWORD}@db:5432/inventario
+    command: ["uv", "run", "--no-sync", "alembic", "upgrade", "head"]
+    restart: "no"
+
+  backend:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8001:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://inventario:${POSTGRES_PASSWORD}@db:5432/inventario
+    restart: unless-stopped
+
+volumes:
+  inventario_db_data:
