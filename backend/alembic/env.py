@@ -15,7 +15,8 @@ from app.database import Base
 from app.models import (
     usuario,
     gasto,
-)  # noqa: F401 (necesario para que Alembic los detecte)
+    equipo,
+)  # noqa: F401
 
 config.set_main_option(
     "sqlalchemy.url", config.attributes.get("database_url", settings.database_url)
