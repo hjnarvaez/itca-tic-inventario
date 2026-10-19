@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'dashboard_screen.dart';
+
 import '../controllers/auth_controller.dart';
 import '../controllers/equipos_controller.dart';
 import '../models/equipo.dart';
@@ -73,6 +75,15 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Inventario TIC'),
         actions: [
+          IconButton(
+            tooltip: 'Dashboard de inventario',
+            icon: const Icon(Icons.dashboard_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Asistente IA',
             icon: const Icon(Icons.auto_awesome),
