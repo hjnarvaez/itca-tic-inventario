@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../models/equipo.dart';
+import '../models/filtro_inventario.dart';
 import '../repositories/equipos_repository.dart';
 
 class EquiposController extends GetxController {
@@ -18,6 +19,66 @@ class EquiposController extends GetxController {
 
   final favoritos = <String>[].obs;
   final soloFavoritos = false.obs;
+  final busqueda = ''.obs;
+  final estadoSeleccionado = 'Todos'.obs;
+  final categoriaSeleccionada = 'Todas'.obs;
+
+  static const estadosDisponibles = [
+    'Todos',
+    'Disponible',
+    'Asignado',
+    'Mantenimiento',
+    'Baja',
+  ];
+
+  List<String> get categoriasDisponibles {
+    final categorias = equipos
+        .map((equipo) => equipo.categoria.trim())
+        .where((categoria) => categoria.isNotEmpty)
+        .toSet()
+        .toList();
+    categorias.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return categorias;
+  }
+
+  List<Equipo> get equiposVisibles {
+    return FiltroInventario(
+      texto: busqueda.value,
+      estado: estadoSeleccionado.value == 'Todos'
+          ? null
+          : estadoSeleccionado.value,
+      categoria: categoriaSeleccionada.value == 'Todas'
+          ? null
+          : categoriaSeleccionada.value,
+      soloFavoritos: soloFavoritos.value,
+    ).aplicar(equipos, esFavorito: esFavorito);
+  }
+
+  bool get hayFiltrosActivos {
+    return busqueda.value.trim().isNotEmpty ||
+        estadoSeleccionado.value != 'Todos' ||
+        categoriaSeleccionada.value != 'Todas' ||
+        soloFavoritos.value;
+  }
+
+  void actualizarBusqueda(String valor) {
+    busqueda.value = valor;
+  }
+
+  void seleccionarEstado(String estado) {
+    estadoSeleccionado.value = estado;
+  }
+
+  void seleccionarCategoria(String categoria) {
+    categoriaSeleccionada.value = categoria;
+  }
+
+  void limpiarFiltros() {
+    busqueda.value = '';
+    estadoSeleccionado.value = 'Todos';
+    categoriaSeleccionada.value = 'Todas';
+    soloFavoritos.value = false;
+  }
 
   bool esFavorito(String codigo) {
     return favoritos.contains(codigo);
