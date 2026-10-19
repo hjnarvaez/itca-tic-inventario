@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend FastAPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: inventario_ci
+          POSTGRES_PASSWORD: ci-ephemeral-only
+          POSTGRES_DB: inventario_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inventario_ci -d inventario_ci_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SECRET_KEY: ci-only-jwt-key-not-for-production
+      DATABASE_URL: postgresql+psycopg://inventario_ci:ci-ephemeral-only@127.0.0.1:5432/ci_database_access_forbidden
+      TEST_DATABASE_URL: postgresql+psycopg://inventario_ci:ci-ephemeral-only@127.0.0.1:5432/inventario_ci_test
+      GEMINI_API_KEY: ""
+      MCP_DEMO_EMAIL: ""
+      MCP_DEMO_PASSWORD: ""
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar uv y Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.7"
+          python-version: "3.12.14"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Verificar y sincronizar dependencias bloqueadas
+        run: |
+          uv lock --check
+          uv sync --frozen
+
+      - name: Verificar aislamiento de la base de pruebas
+        run: |
+          uv run python - <<'PY'
+          from sqlalchemy.engine import make_url
+          from app.config import settings
+
+          test_url = make_url(settings.test_database_url)
+          app_url = make_url(settings.database_url)
+
+          assert test_url != app_url
+          assert (test_url.database or "").endswith("_test")
+          assert test_url.database == "inventario_ci_test"
+          assert test_url.host in {"127.0.0.1", "localhost"}
+          assert app_url.database == "ci_database_access_forbidden"
+          PY
+
+      - name: Analizar backend con Ruff
+        run: uv run ruff check .
+
+      - name: Ejecutar pruebas y cobertura
+        run: >-
+          uv run pytest
+          --cov=app
+          --cov-report=term-missing
+          --cov-report=xml:coverage.xml
+          --cov-fail-under=80
+
+      - name: Construir imagen del backend sin publicar
+        run: docker build --tag itca-tic-inventario-backend:ci .
+
+  flutter:
+    name: Frontend Flutter
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Instalar Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Verificar versión de Flutter
+        run: flutter --version
+
+      - name: Instalar dependencias bloqueadas
+        run: flutter pub get --enforce-lockfile
+
+      - name: Comprobar que pubspec.lock no cambió
+        run: git diff --exit-code -- pubspec.lock
+
+      - name: Analizar frontend
+        run: flutter analyze
+
+      - name: Ejecutar pruebas Flutter con cobertura
+        run: flutter test --coverage
+
+      - name: Compilar APK debug sin publicar
+        run: flutter build apk --debug
+
+      - name: Verificar APK debug
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk

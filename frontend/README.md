@@ -1,17 +1,32 @@
-# itca_tic_inventario
+# Frontend Flutter
 
-A new Flutter project.
+Aplicación Android de ITCA TIC Inventario. La documentación principal, la
+configuración del backend y las advertencias de seguridad están en el
+[README del repositorio](../README.md).
 
-## Getting Started
+## Desarrollo local
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get --enforce-lockfile
+flutter analyze
+flutter test --coverage
+flutter run -d <ID_DEL_EMULADOR>
+```
 
-A few resources to get you started if this is your first Flutter project:
+En debug, el valor predeterminado de `API_BASE_URL` es
+`http://10.0.2.2:8001`, correspondiente al backend local visto desde el
+emulador Android.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## APK de demostración
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter build apk --debug
+adb install -r build/app/outputs/flutter-apk/app-debug.apk
+```
+
+Este APK es exclusivamente de demostración. No debe presentarse como release de
+producción. Profile y release exigen una URL HTTPS explícita; release también
+requiere una firma privada local no incluida en Git.
+
+Consultar la [guía de demostración](../docs/GUIA_DEMOSTRACION.md) para preparar
+Docker, PostgreSQL, FastAPI, el usuario ficticio y los 20 equipos.
