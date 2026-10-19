@@ -1,0 +1,221 @@
+name: Publicar APK académico
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build_apk:
+    name: Validar y compilar APK debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    outputs:
+      artifact_name: ${{ steps.metadata.outputs.artifact_name }}
+      apk_name: ${{ steps.metadata.outputs.apk_name }}
+      checksum_name: ${{ steps.metadata.outputs.checksum_name }}
+    steps:
+      - name: Obtener código etiquetado
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validar origen y versión
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+              echo "La validación manual solo puede ejecutarse desde main." >&2
+              exit 1
+            fi
+            version_label="manual-${GITHUB_SHA::7}"
+          else
+            if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+              echo "La publicación requiere una etiqueta Git." >&2
+              exit 1
+            fi
+
+            tag="${GITHUB_REF_NAME}"
+            if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Etiqueta inválida: debe cumplir vX.Y.Z." >&2
+              exit 1
+            fi
+
+            app_version="$(
+              sed -nE \
+                's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)(\+[0-9]+)?[[:space:]]*$/\1/p' \
+                pubspec.yaml
+            )"
+            if [[ -z "${app_version}" ]]; then
+              echo "No se pudo obtener una versión semántica de pubspec.yaml." >&2
+              exit 1
+            fi
+            if [[ "${tag}" != "v${app_version}" ]]; then
+              echo "La etiqueta no coincide con la versión de pubspec.yaml." >&2
+              exit 1
+            fi
+
+            if ! git show-ref --verify --quiet refs/remotes/origin/main; then
+              echo "No se encontró origin/main en el checkout." >&2
+              exit 1
+            fi
+            main_sha="$(git rev-parse refs/remotes/origin/main)"
+            if [[ "${GITHUB_SHA}" != "${main_sha}" ]]; then
+              echo "La etiqueta debe apuntar al HEAD actual de origin/main." >&2
+              exit 1
+            fi
+
+            version_label="${tag}"
+          fi
+
+          apk_name="itca-tic-inventario-${version_label}-debug.apk"
+          checksum_name="${apk_name}.sha256"
+          artifact_name="apk-${version_label}"
+
+          echo "apk_name=${apk_name}" >> "${GITHUB_OUTPUT}"
+          echo "checksum_name=${checksum_name}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=${artifact_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Instalar Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Instalar Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Verificar versión de Flutter
+        run: flutter --version
+
+      - name: Instalar dependencias bloqueadas
+        run: flutter pub get --enforce-lockfile
+
+      - name: Comprobar que pubspec.lock no cambió
+        run: git diff --exit-code -- pubspec.lock
+
+      - name: Analizar frontend
+        run: flutter analyze
+
+      - name: Ejecutar pruebas Flutter
+        run: flutter test
+
+      - name: Compilar APK debug académico
+        run: >-
+          flutter build apk --debug
+          --dart-define=API_BASE_URL=http://10.0.2.2:8001
+
+      - name: Verificar APK y generar SHA-256
+        env:
+          APK_NAME: ${{ steps.metadata.outputs.apk_name }}
+          CHECKSUM_NAME: ${{ steps.metadata.outputs.checksum_name }}
+        run: |
+          set -euo pipefail
+          source_apk="build/app/outputs/flutter-apk/app-debug.apk"
+
+          test -s "${source_apk}"
+          unzip -tqq "${source_apk}"
+
+          mkdir -p dist
+          cp "${source_apk}" "dist/${APK_NAME}"
+
+          cd dist
+          sha256sum "${APK_NAME}" > "${CHECKSUM_NAME}"
+          sha256sum --check "${CHECKSUM_NAME}"
+
+      - name: Subir artefacto temporal
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: |
+            frontend/dist/${{ steps.metadata.outputs.apk_name }}
+            frontend/dist/${{ steps.metadata.outputs.checksum_name }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  publish_release:
+    name: Publicar GitHub Release
+    needs: build_apk
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Descargar APK validado
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build_apk.outputs.artifact_name }}
+          path: dist
+
+      - name: Verificar integridad antes de publicar
+        env:
+          APK_NAME: ${{ needs.build_apk.outputs.apk_name }}
+          CHECKSUM_NAME: ${{ needs.build_apk.outputs.checksum_name }}
+        run: |
+          set -euo pipefail
+          test -s "dist/${APK_NAME}"
+          test -s "dist/${CHECKSUM_NAME}"
+          cd dist
+          sha256sum --check "${CHECKSUM_NAME}"
+          unzip -tqq "${APK_NAME}"
+
+      - name: Comprobar que el Release no existe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Ya existe un GitHub Release para ${GITHUB_REF_NAME}." >&2
+            exit 1
+          fi
+
+      - name: Publicar APK debug en GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          APK_NAME: ${{ needs.build_apk.outputs.apk_name }}
+          CHECKSUM_NAME: ${{ needs.build_apk.outputs.checksum_name }}
+          RELEASE_NOTES: |
+            Demostración académica de ITCA TIC Inventario.
+
+            Este artefacto es un APK debug para fines de evaluación; no es una versión productiva ni un APK release firmado.
+
+            Requisitos de ejecución:
+            - Emulador Android.
+            - FastAPI y PostgreSQL ejecutándose localmente.
+            - Backend accesible desde el emulador en http://10.0.2.2:8001.
+
+            El archivo .sha256 adjunto permite verificar la integridad del APK generado desde el commit etiquetado.
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/${APK_NAME}" \
+            "dist/${CHECKSUM_NAME}" \
+            --verify-tag \
+            --title "ITCA TIC Inventario ${GITHUB_REF_NAME} - Demo académica Android" \
+            --notes "${RELEASE_NOTES}"
