@@ -4,15 +4,20 @@ import '../config/api_config.dart';
 import 'auth_service.dart';
 
 class IaService {
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: ApiConfig.baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 45),
-    ),
-  );
+  IaService({Dio? dio, AuthService? authService})
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              baseUrl: ApiConfig.baseUrl,
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 45),
+            ),
+          ),
+      _authService = authService ?? AuthService();
 
-  final AuthService _authService = AuthService();
+  final Dio _dio;
+  final AuthService _authService;
 
   Future<String> preguntar(String pregunta) async {
     final token = await _authService.obtenerToken();

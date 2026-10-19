@@ -5,15 +5,20 @@ import '../models/equipo.dart';
 import '../services/auth_service.dart';
 
 class EquiposRepository {
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: ApiConfig.baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-    ),
-  );
+  EquiposRepository({Dio? dio, AuthService? authService})
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              baseUrl: ApiConfig.baseUrl,
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 10),
+            ),
+          ),
+      _auth = authService ?? AuthService();
 
-  final AuthService _auth = AuthService();
+  final Dio _dio;
+  final AuthService _auth;
 
   Future<Options> _autorizacion() async {
     final token = await _auth.obtenerToken();

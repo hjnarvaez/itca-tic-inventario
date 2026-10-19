@@ -5,18 +5,23 @@ import '../config/api_config.dart';
 import 'auth_service.dart';
 
 class FavoritosService {
+  FavoritosService({Dio? dio, AuthService? authService})
+    : _dio = dio ?? Dio(BaseOptions(baseUrl: ApiConfig.baseUrl)),
+      _auth = authService ?? AuthService();
+
+  final Dio _dio;
+  final AuthService _auth;
+
   Box<String>? _box;
 
   Future<List<String>> inicializar() async {
-    final token = await AuthService().obtenerToken();
+    final token = await _auth.obtenerToken();
 
     if (token == null) {
       throw StateError('Sesión no disponible');
     }
 
-    final dio = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
-
-    final response = await dio.get(
+    final response = await _dio.get(
       '/usuarios/me',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
@@ -33,6 +38,7 @@ class FavoritosService {
     if (box == null) {
       throw StateError('Favoritos no inicializados');
     }
+
     await box.put(codigo, codigo);
   }
 
@@ -41,6 +47,7 @@ class FavoritosService {
     if (box == null) {
       throw StateError('Favoritos no inicializados');
     }
+
     await box.delete(codigo);
   }
 }
