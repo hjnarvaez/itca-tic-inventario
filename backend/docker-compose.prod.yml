@@ -1,42 +1,63 @@
+x-backend-image: &backend-image
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: ${BACKEND_IMAGE:-itca-tic-inventario-backend:production}
+
+x-backend-environment: &backend-environment
+  # Compose deriva la URL del mismo usuario y base que inicializan PostgreSQL.
+  # PGPASSWORD evita duplicar o interpolar el secreto dentro de la URL.
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Define POSTGRES_USER para produccion}@db:5432/${POSTGRES_DB:?Define POSTGRES_DB para produccion}
+  PGPASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD para produccion}
+  SECRET_KEY: ${SECRET_KEY:?Define una SECRET_KEY segura para produccion}
+  ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:?Define GEMINI_API_KEY para habilitar el asistente IA}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+  MCP_ISSUER_URL: ${MCP_ISSUER_URL:-http://127.0.0.1:8000}
+  MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-http://127.0.0.1:8000/mcp}
+  # El fallback demo solo aplica al transporte MCP stdio. En produccion HTTP
+  # queda sin credenciales salvo que el operador lo configure expresamente.
+  MCP_DEMO_EMAIL: ${MCP_DEMO_EMAIL:-}
+  MCP_DEMO_PASSWORD: ${MCP_DEMO_PASSWORD:-}
+
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-gastos}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gastos}
-      POSTGRES_DB: ${POSTGRES_DB:-gastos}
+      POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER para produccion}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD para produccion}
+      POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB para produccion}
     volumes:
-      - gastos_db_data:/var/lib/postgresql/data
+      - inventario_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gastos}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   migrate:
-    image: ghcr.io/cj-murillo/proyecto-curso-spec-kit:latest
+    <<: *backend-image
     depends_on:
       db:
         condition: service_healthy
     env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-gastos}:${POSTGRES_PASSWORD:-gastos}@db:5432/${POSTGRES_DB:-gastos}
+      - ${BACKEND_ENV_FILE:-.env}
+    environment: *backend-environment
     command: ["uv", "run", "--no-sync", "alembic", "upgrade", "head"]
     restart: "no"
 
   backend:
-    image: ghcr.io/cj-murillo/proyecto-curso-spec-kit:latest
+    <<: *backend-image
     depends_on:
       migrate:
         condition: service_completed_successfully
     ports:
-      - "8000:8000"
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
     env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-gastos}:${POSTGRES_PASSWORD:-gastos}@db:5432/${POSTGRES_DB:-gastos}
+      - ${BACKEND_ENV_FILE:-.env}
+    environment: *backend-environment
     restart: unless-stopped
 
 volumes:
-  gastos_db_data:
+  inventario_db_data:

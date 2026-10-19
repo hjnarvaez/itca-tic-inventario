@@ -10,3 +10,32 @@ htmlcov/
 .flutter-plugins-dependencies
 build/
 .DS_Store
+
+/backups/
+**/backups/
+**/dumps/
+*.backup
+*.backup.gz
+*.dump
+*.dump.gz
+*.pgdump
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+*_backup.sql
+*-backup.sql
+*_dump.sql
+*-dump.sql
+
+# Claves privadas y almacenes de credenciales. Los certificados publicos .crt
+# y los scripts .sql normales no se excluyen indiscriminadamente.
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
